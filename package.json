@@ -1,0 +1,38 @@
+{ "name": "generic-diff-context",
+  "version": "0.1.0",
+  "description": "Filter reports from `generic-diff` or compatible modules to give changes with optional context.",
+  "keywords": [
+    "context",
+    "diff",
+    "generic-diff"
+  ],
+
+  "author": "M.K. (https://github.com/mk-pmb)",
+  "homepage": "https://github.com/mk-pmb/generic-diff-context-js#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mk-pmb/generic-diff-context-js.git"
+  },
+  "bugs": {
+    "url": "https://github.com/mk-pmb/generic-diff-context-js/issues"
+  },
+
+  "private": false, "license": "ISC",
+
+  "main": "gdc.js",
+  "scripts": { "test": "nodejs test/test.js" },
+  "directories": {
+    "doc": "doc",
+    "test": "test"
+  },
+
+  "dependencies": {
+    "generic-diff": "^1.0.1"
+  },
+  "devDependencies": {
+    "generic-common-prefix": "^0.1.1"
+  },
+
+
+  "npm vs. BOM = Unexpected token": "-*- coding: UTF-8 -*-"
+}
