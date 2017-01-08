@@ -129,10 +129,44 @@ module.exports = (function () {
   };
 
 
+  gdc.unicode = {
+    arrows: {
+      downwardsArrowWithCornerLeftwards: '\u21B5',    // ↵
+      rightwardsArrowWithHook: '\u21AA',              // ↪
+    },
+    controlPictures: {
+      symbolForLineFeed: '\u240A',                    // ␊
+      symbolForNewline: '\u2424',                     // ␤
+    },
+    miscellaneousTechnical: {
+      enterSymbol: '\u2386',                          // ⎆
+    },
+    supplementalArrowsB: {
+      southEastArrowWithHook: '\u2925',               // ⤥
+    },
+  };
+  gdc.markLineFeedsLeft = (function () {
+    var r = /\n/g, m = '\n' + gdc.unicode.arrows.rightwardsArrowWithHook;
+    return function (s) { return s.replace(r, m); };
+  }());
+
+
   gdc.unify = function (diff, ctxLen) {
-    var unified = [], blk, prevCtx = false, addCtxRemain = 0;
+    var unified = [], blk, blkAppendSign, prevCtx = false, addCtxRemain = 0;
     unified.lenA = 0;
     unified.lenB = 0;
+
+    function blkAppend(data) {
+      if (isStr(data)) {
+        data = gdc.markLineFeedsLeft(data);
+        return blk.push([blkAppendSign, data]);
+      }
+      if (data.forEach) {
+        return data.forEach(blkAppend);
+      }
+      throw new TypeError('Cannot make unified diff: unsupported item type');
+    }
+
     diff.forEach(function (part, partIdx) {
       var ctx, taken;
       if (isEmpty(part.sign) || isEmpty(part.itemsA) || isEmpty(part.itemsB)) {
@@ -144,7 +178,8 @@ module.exports = (function () {
           taken = ctx.splice(0, addCtxRemain);
           blk.lenA += taken.length;
           blk.lenB += taken.length;
-          taken.forEach(function (item) { blk.push([part.sign, item]); });
+          blkAppendSign = part.sign;
+          blkAppend(taken);
           addCtxRemain -= taken.length;
         }
         prevCtx = (((!prevCtx) || (ctx.length >= ctxLen)) ? ctx
@@ -166,11 +201,14 @@ module.exports = (function () {
         if (taken) {
           blk.lenA += taken.length;
           blk.lenB += taken.length;
-          taken.forEach(function (item) { blk.push([' ', item]); });
+          blkAppendSign = ' ';
+          blkAppend(taken);
         }
-        part.itemsA.forEach(function (item) { blk.push(['-', item]); });
+        blkAppendSign = '-';
+        blkAppend(part.itemsA);
         blk.lenA += part.itemsA.length;
-        part.itemsB.forEach(function (item) { blk.push(['+', item]); });
+        blkAppendSign = '+';
+        blkAppend(part.itemsB);
         blk.lenB += part.itemsB.length;
         addCtxRemain = ctxLen;
       }
