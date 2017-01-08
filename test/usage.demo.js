@@ -49,12 +49,12 @@ function usageDemo(dump) {
   //= `    [ '+', 'fuzzy' ],`
   //= `    [ ' ', 'quick' ],`
   //= `    ... 4 more items,`
-  //= `    startA: 0, startB: 0, lenB: 5, lenA: 5, toString: [Function] ],`
+  //= `    startA: 0, startB: 0, lenB: 5, lenA: 5 ],`
   //= `  [ [ ' ', 'the' ],`
   //= `    [ '-', 'lazy' ],`
   //= `    [ ' ', 'dog.' ],`
-  //= `    startA: 6, startB: 6, lenB: 2, lenA: 3, toString: [Function] ],`
-  //= `  lenA: 9, lenB: 8, toString: [Function] ]`
+  //= `    startA: 6, startB: 6, lenB: 2, lenA: 3 ],`
+  //= `  lenA: 9, lenB: 8 ]`
 
   dump(diff.map(String));
   //= `[ '@@ -1,5 +1,5 @@\n The\n' +`

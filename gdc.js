@@ -3,7 +3,16 @@
 'use strict';
 
 module.exports = (function () {
-  var gdc, genDiff = require('generic-diff');
+  var gdc, genDiff = require('generic-diff'), addHiddenProp;
+
+  addHiddenProp = (function () {
+    var odp = Object.defineProperty;
+    function defProp(obj, prop, val) {
+      odp(obj, prop, { configurable: true, writable: true, value: val });
+    }
+    function setProp(obj, prop, val) { obj[prop] = val; }
+    return (odp ? defProp : setProp);
+  }());
 
   function truthyOr(x, y) { return (x || (x === y)); }
   function isEmpty(x) { return ((x === null) || (x === undefined)); }
@@ -151,7 +160,7 @@ module.exports = (function () {
           blk.startA = unified.lenA - (taken ? taken.length : 0);
           blk.startB = unified.lenB - (taken ? taken.length : 0);
           blk.lenA = blk.lenB = 0;
-          blk.toString = gdc.unify.blockToString;
+          addHiddenProp(blk, 'toString', gdc.unify.blockToString);
           unified.push(blk);
         }
         if (taken) {
@@ -168,7 +177,7 @@ module.exports = (function () {
       unified.lenA += part.itemsA.length;
       unified.lenB += part.itemsB.length;
     });
-    unified.toString = gdc.unify.diffToString;
+    addHiddenProp(unified, 'toString', gdc.unify.diffToString);
     return unified;
   };
   gdc.unify.blockToString = function () {
