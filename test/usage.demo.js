@@ -18,14 +18,15 @@ function usageDemo(dump) {
   //= `    itemsA: '', itemsB: 'p',`
   //= `    startA: 5, startB: 3, endA: 5, endB: 4 },`
   //= `  ... 6 more items,`
-  //= `  glue: '', lenB: 11, lenA: 11 ]`
+  //= `  lenA: 11, lenB: 11, lastPartA: 8, lastPartB: 8, glue: '' ]`
 
 
   function toWords(s) { return s.split(/\s+/); }
 
   a = toWords("The       quick brown fox    jumps over the lazy dog.");
   b = toWords("The fuzzy quick       kitten jumps over the      dog.");
-  dump(genDiffCtx(a, b));
+  diff = genDiffCtx(a, b);
+  dump(diff);
   //= `[ { added: false, removed: false, sign: ' ',`
   //= `    itemsA: [ 'The' ], itemsB: [ 'The' ],`
   //= `    startA: 0, startB: 0, endA: 1, endB: 1 },`
@@ -36,8 +37,7 @@ function usageDemo(dump) {
   //= `    itemsA: [ 'quick' ], itemsB: [ 'quick' ],`
   //= `    startA: 1, startB: 2, endA: 2, endB: 3 },`
   //= `  ... 5 more items,`
-  //= `  glue: false, lenB: 8, lenA: 9 ]`
-
+  //= `  lenA: 9, lenB: 8, lastPartA: 7, lastPartB: 7, glue: false ]`
 
   a = toWords("The       quick brown fox    jumps over the lazy dog.");
   b = toWords("The fuzzy quick       kitten jumps over the      dog.");
@@ -49,12 +49,12 @@ function usageDemo(dump) {
   //= `    [ '+', 'fuzzy' ],`
   //= `    [ ' ', 'quick' ],`
   //= `    ... 4 more items,`
-  //= `    startA: 0, startB: 0, lenB: 5, lenA: 5 ],`
+  //= `    startA: 0, startB: 0, lenA: 5, lenB: 5 ],`
   //= `  [ [ ' ', 'the' ],`
   //= `    [ '-', 'lazy' ],`
-  //= `    [ ' ', 'dog.' ],`
-  //= `    startA: 6, startB: 6, lenB: 2, lenA: 3 ],`
-  //= `  lenA: 9, lenB: 8 ]`
+  //= `    [ ' ', 'dog.', finalEol: [Object] ],`
+  //= `    startA: 6, startB: 6, lenA: 3, lenB: 2 ],`
+  //= `  lenA: 9, lenB: 8, finalEol: { a: false, b: false } ]`
 
   dump(diff.map(String));
   //= `[ '@@ -1,5 +1,5 @@\n The\n' +`
@@ -66,10 +66,10 @@ function usageDemo(dump) {
   //= `        ' jumps',`
   //= `  '@@ -7,3 +7,2 @@\n the\n' +`
   //= `        '-lazy\n' +`
-  //= `        ' dog.' ]`
+  //= `        ' dog.\n\\ No newline at end of file' ]`
 
   dump(String(diff).split(/\n/));
-  //= `[ '@@ -1,5 +1,5 @@', ' The', '+fuzzy', ... 9 more items ]`
+  //= `[ '@@ -1,5 +1,5 @@', ' The', '+fuzzy', ... 10 more items ]`
 }
 
 

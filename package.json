@@ -30,7 +30,8 @@
     "generic-diff": "^1.0.1"
   },
   "devDependencies": {
-    "generic-common-prefix": "^0.1.1"
+    "generic-common-prefix": "^0.1.1",
+    "usnam-pmb": "^0.2.2"
   },
 
 

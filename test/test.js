@@ -3,6 +3,8 @@
 'use strict';
 
 
+require('usnam-pmb');
+
 var diffCtx = require('generic-diff-context'), a, b, opt,
   assert = require('assert'), eq = assert.deepStrictEqual,
   stripCommonPrefix = require('generic-common-prefix').strip,
@@ -20,6 +22,15 @@ function arrEq(actual, expect) {
   stripCommonPrefix(actual, expect, 0, 0, 1);
   eq(actual, expect);
 }
+
+
+//a = [ 'foo', 'bar'   ].join('\n');
+//b = [ 'foo', 'bar', ''     ].join('\n');
+a = [ 'foo' ];
+b = [ 'bar' ];
+opt = { unified: 2 };
+arrEq([String(diffCtx(a, b, opt)).split(/\n/),
+  '']);
 
 
 (function verifyUsageDemo() {
@@ -93,7 +104,7 @@ arrEq([dumpDiff(diffCtx(a, b, opt)),
 
 a = toWords("The       quick brown fox    jumps over the lazy dog.");
 b = toWords("The fuzzy quick       kitten jumps over the      dog.");
-opt = { unified: 1 };
+opt = { unified: 1, finalEol: false };
 arrEq([diffCtx(a, b, opt).map(String),
   ('@@ -1,5 +1,5 @@\n' +
     ' The\n' +
@@ -112,7 +123,7 @@ arrEq([diffCtx(a, b, opt).map(String),
 
 a = toWords("The       quick brown fox    jumps over a dog.");
 b = toWords("A   fuzzy quick brown kitten jumps over a dog!");
-opt = { unified: 0 };
+opt = { unified: 0, finalEol: false };
 arrEq([String(diffCtx(a, b, opt)).split(/\n/),
   '@@ -1 +1,2 @@',  '-The',     '+A', '+fuzzy',
   '@@ -4 +5 @@',    '-fox',     '+kitten',
@@ -122,7 +133,7 @@ arrEq([String(diffCtx(a, b, opt)).split(/\n/),
 
 a = toWords("The       quick brown fox    jumps over a dog.");
 b = toWords("A   fuzzy quick brown kitten jumps over a dog!");
-opt = { unified: 1 };
+opt = { unified: 1, finalEol: false };
 arrEq([String(diffCtx(a, b, opt)).split(/\n/),
   '@@ -1,5 +1,6 @@',
   '-The', '+A', '+fuzzy',
@@ -137,7 +148,7 @@ arrEq([String(diffCtx(a, b, opt)).split(/\n/),
 
 a = toWords("The       quick brown fox    jumps over a dog.");
 b = toWords("A   fuzzy quick brown kitten jumps over a dog!");
-opt = { unified: 2 };
+opt = { unified: 2, finalEol: false };
 arrEq([String(diffCtx(a, b, opt)).split(/\n/),
   '@@ -1,8 +1,9 @@',
   '-The', '+A', '+fuzzy',
