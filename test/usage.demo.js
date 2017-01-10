@@ -9,16 +9,14 @@ function usageDemo(dump) {
   b = "help arnold";
   dump(genDiffCtx(a, b));
   //= `[ { added: false, removed: false, sign: ' ',`
-  //= `    itemsA: 'hel', itemsB: 'hel',`
-  //= `    startA: 0, startB: 0, endA: 3, endB: 3 },`
+  //= `    a: { items: 'hel', start: 0 }, b: { items: 'hel', start: 0 } },`
   //= `  { added: false, removed: true,  sign: '-',`
-  //= `    itemsA: 'lo', itemsB: '',`
-  //= `    startA: 3, startB: 3, endA: 5, endB: 3 },`
+  //= `    a: { items: 'lo', start: 3 }, b: { items: '', start: 3 } },`
   //= `  { added: true,  removed: false, sign: '+',`
-  //= `    itemsA: '', itemsB: 'p',`
-  //= `    startA: 5, startB: 3, endA: 5, endB: 4 },`
+  //= `    a: { items: '', start: 5 }, b: { items: 'p', start: 3 } },`
   //= `  ... 6 more items,`
-  //= `  lenA: 11, lenB: 11, lastPartA: 8, lastPartB: 8, glue: '' ]`
+  //= `  a: { len: 11, lastPart: 8 }, b: { len: 11, lastPart: 8 },`
+  //= `  glue: '' ]`
 
 
   function toWords(s) { return s.split(/\s+/); }
@@ -28,16 +26,17 @@ function usageDemo(dump) {
   diff = genDiffCtx(a, b);
   dump(diff);
   //= `[ { added: false, removed: false, sign: ' ',`
-  //= `    itemsA: [ 'The' ], itemsB: [ 'The' ],`
-  //= `    startA: 0, startB: 0, endA: 1, endB: 1 },`
+  //= `    a: { items: [Object], start: 0 },`
+  //= `    b: { items: [Object], start: 0 } },`
   //= `  { added: true,  removed: false, sign: '+',`
-  //= `    itemsA: [], itemsB: [ 'fuzzy' ],`
-  //= `    startA: 1, startB: 1, endA: 1, endB: 2 },`
+  //= `    a: { items: [], start: 1 },`
+  //= `    b: { items: [Object], start: 1 } },`
   //= `  { added: false, removed: false, sign: ' ',`
-  //= `    itemsA: [ 'quick' ], itemsB: [ 'quick' ],`
-  //= `    startA: 1, startB: 2, endA: 2, endB: 3 },`
+  //= `    a: { items: [Object], start: 1 },`
+  //= `    b: { items: [Object], start: 2 } },`
   //= `  ... 5 more items,`
-  //= `  lenA: 9, lenB: 8, lastPartA: 7, lastPartB: 7, glue: false ]`
+  //= `  a: { len: 9, lastPart: 7 }, b: { len: 8, lastPart: 7 },`
+  //= `  glue: false ]`
 
   a = toWords("The       quick brown fox    jumps over the lazy dog.");
   b = toWords("The fuzzy quick       kitten jumps over the      dog.");
@@ -49,12 +48,15 @@ function usageDemo(dump) {
   //= `    [ '+', 'fuzzy' ],`
   //= `    [ ' ', 'quick' ],`
   //= `    ... 4 more items,`
-  //= `    startA: 0, startB: 0, lenA: 5, lenB: 5 ],`
+  //= `    a: { start: 0, len: 5 },`
+  //= `    b: { start: 0, len: 5 } ],`
   //= `  [ [ ' ', 'the' ],`
   //= `    [ '-', 'lazy' ],`
-  //= `    [ ' ', 'dog.', finalEol: [Object] ],`
-  //= `    startA: 6, startB: 6, lenA: 3, lenB: 2 ],`
-  //= `  lenA: 9, lenB: 8, finalEol: { a: false, b: false } ]`
+  //= `    [ ' ', 'dog.' ],`
+  //= `    a: { start: 6, len: 3 },`
+  //= `    b: { start: 6, len: 2 } ],`
+  //= `  a: { len: 9, lastPart: 1, finalLf: false },`
+  //= `  b: { len: 8, lastPart: 1, finalLf: false } ]`
 
   dump(diff.map(String));
   //= `[ '@@ -1,5 +1,5 @@\n The\n' +`
@@ -66,36 +68,56 @@ function usageDemo(dump) {
   //= `        ' jumps',`
   //= `  '@@ -7,3 +7,2 @@\n the\n' +`
   //= `        '-lazy\n' +`
-  //= `        ' dog.\n\\ No newline at end of file' ]`
+  //= `        ' dog.' ]`
 
   dump(String(diff).split(/\n/));
-  //= `[ '@@ -1,5 +1,5 @@', ' The', '+fuzzy', ... 10 more items ]`
+  //= `[ '@@ -1,5 +1,5 @@', ' The', '+fuzzy', ... 9 more items ]`
 }
 
 
 var util = require('util');
 
 
+usageDemo.compact = function (func, obj) {
+  if (obj) { func = obj[func].bind(obj); }
+  usageDemo(function (x) { func(usageDemo.compactInspect(x));  });
+  return obj;
+};
+
+
 usageDemo.compactInspect = function (x) {
   return util.inspect(x, { maxArrayLength: 3 }
     ).replace(/(true,)(\n)/g, '$1 $2'
-    ).replace(/\n(\s*)(?=(itemsA|startA):)/g, '\r$1'
+    ).replace(/\n(\s*)(?=[ab]:)/g, '\r$1'
     ).replace(/( \d+ more items,)\n/g, '$1\r'
     ).replace(/((?:[0-9a-z']|' \]|\[\]), *)\n\s+(?=[a-z])/g, '$1 '
     ).replace(/(\w\\n)/g, "$1' +\n        '"
+    ).replace(/\r\s*(?=b:[ -~]{0,30}\},\n)/g, ' '
     ).replace(/\r/g, '\n');
 };
 
 
-usageDemo.dumpTo = function (x) {
-  x = usageDemo.compactInspect(x);
-  if (!this) { return console.log(x); }
-  this.push.apply(this, x.split(/\n/));
+usageDemo.capture = function () {
+  var output = [];
+  function dumpInspect(x) {
+    output.push.apply(output, x.split(/\n/));
+  }
+  usageDemo.compact(dumpInspect);
+  return output;
 };
 
 
+usageDemo.expectedOutput = (function () {
+  var expected = [];
+  String(usageDemo).replace(/\n\s*\/{2}=\s*`([ -~]*)`(?=\n)/g,
+    function (m, exln) { expected.push(m && exln); });
+  return expected;
+}());
 
 
+usageDemo.compare = function (cmp) {
+  return cmp(usageDemo.capture(), usageDemo.expectedOutput);
+};
 
 
 
@@ -112,4 +134,4 @@ usageDemo.dumpTo = function (x) {
 
 
 module.exports = usageDemo;
-if (require.main === module) { usageDemo(usageDemo.dumpTo.bind(null)); }
+if (require.main === module) { usageDemo.compact('log', console); }

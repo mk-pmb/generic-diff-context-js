@@ -1,4 +1,4 @@
-﻿/*jslint indent: 2, maxlen: 80, continue: false, unparam: false, node: true */
+﻿/*jslint indent: 2, maxlen: 80, node: true */
 /* -*- tab-width: 2 -*- */
 'use strict';
 
@@ -18,6 +18,19 @@ module.exports = (function () {
   function isEmpty(x) { return ((x === null) || (x === undefined)); }
   function isStr(x) { return ((typeof x) === 'string'); }
   function tryJoin(glue, x) { return (x.join ? x.join(glue) : x); }
+  function arrLast(a) { return a[a.length - 1]; }
+
+  function bothSides(x, y, func) {
+    if (!func) { func = y; }
+    if (!func) { return [ x('a'), x('b') ]; }
+    return [ func(x.a, y.a), func(x.b, y.b) ];
+  }
+
+  //function bothSides.recalcPartEnds(part) {
+  //  part.a.end = part.a.start + part.a.len;
+  //  part.b.end = part.b.start + part.b.len;
+  //}
+
 
   gdc = function genericDiffContext(a, b, opt) {
     var fullDiffReport, fullMerge = [], unified;
@@ -37,19 +50,17 @@ module.exports = (function () {
       }
       break;
     }
+    if (!Array.isArray(fullDiffReport)) {
+      throw new TypeError('Expected original diff report to be an array');
+    }
 
-    // Don't combine A/B assignments or the order in the object will
-    // be the reverse of the order in code, ugly.
-    fullMerge.lenA = 0;
-    fullMerge.lenB = 0;
-    fullMerge.lastPartA = 0;
-    // ^-- Section index within the diff report. Not: Position in original A.
-    fullMerge.lastPartB = 0;
+    fullMerge.a = { len: 0 };
+    fullMerge.b = { len: 0 };
 
     opt = Object.assign({}, opt);
     unified = opt.unified;
     if (typeof unified === 'number') {
-      if (opt.finalEol !== false) { opt.finalEol = true; }
+      if (opt.finalLf !== false) { opt.finalLf = true; }
     } else {
       unified = false;
     }
@@ -61,7 +72,9 @@ module.exports = (function () {
 
     fullDiffReport.forEach(gdc.scanPart.bind(null, fullMerge));
     if (opt.mergePairs) { fullMerge = gdc.mergeChangePairs(fullMerge, opt); }
-    if (opt.finalEol) { gdc.checkFinalEol(fullMerge); }
+    // fullMerge.forEach(bothSides.recalcPartEnds);
+    gdc.updateLastPartIndices(fullMerge);
+    if (opt.finalLf) { gdc.checkFinalLfBothSides(fullMerge); }
     if (unified !== false) {
       return gdc.unify(fullMerge, unified, opt);
     }
@@ -69,65 +82,90 @@ module.exports = (function () {
   };
 
 
+  gdc.updateLastPartIndices = function (diff) {
+    var lpA = 0, lpB = 0, idx, d;
+    function len(x) { return (x.items || x).length; }
+    for (idx = diff.length - 1; idx > 0; idx -= 1) {
+      d = diff[idx];
+      //console.error('upd lastPart:', idx, d.a, d.b);
+      if (len(d.a)) { lpA = idx; }
+      if (len(d.b)) { lpB = idx; }
+      if (lpA && lpB) { break; }
+    }
+    diff.a.lastPart = lpA;
+    diff.b.lastPart = lpB;
+  };
+
+
+  gdc.dropTrailingEmptyParts = function (diff) {
+    var lastDataPartIdx = Math.max(diff.a.lastPart, diff.b.lastPart),
+      firstDropIdx = lastDataPartIdx + 1;
+    if (firstDropIdx >= diff.length) { return; }
+    diff.splice(firstDropIdx);
+    //console.error('diff part count after dropping:', diff.length);
+  };
+
+
+  gdc.scanPart = function (fullMerge, part, partIdx) {
+    var prev = (arrLast(fullMerge) || false), glue = fullMerge.glue;
+    part = gdc.upgradePart(Object.assign({}, part), partIdx, fullMerge);
+    bothSides(part, fullMerge, function (partSide, mergeSide) {
+      if (truthyOr(glue, '')) {
+        partSide.items = tryJoin(glue, partSide.items);
+      }
+      partSide.start = mergeSide.len;
+      mergeSide.len += partSide.items.length;
+    });
+    if (part.sign === prev.sign) {
+      gdc.addItemsToPrevPart(prev, part, glue);
+      return;
+    }
+    fullMerge.push(part);
+  };
+
+
+  function maybeScanPartError(rly, diff, partIdx, msg) {
+    if (!rly) { return; }
+    msg += ' part ' + partIdx + ' (after items #' + diff.a.len +
+      ' / ' + diff.b.len + ')';
+    throw new Error(msg);
+  }
+
+
   gdc.upgradePart = function (part, partIdx, fm) {
     if (!part.sign) {
       part.sign = (part.added ? (part.removed ? '±' : '+')
                               : (part.removed ? '-' : ' '));
     }
-    var emptyA = (part.itemsA === undefined),
-      emptyB = (part.itemsB === undefined);
+    if (!part.a) { part.a = {}; }
+    if (!part.b) { part.b = {}; }
+    var items = part.items,
+      emptyA = (part.a.items === undefined),
+      emptyB = (part.b.items === undefined);
     if (emptyA || emptyB) {
-      if (part.sign === '±') {
-        throw new Error('Cannot find items for combined add/remove part #' +
-          partIdx + ' (after items #' + fm.lenA + ' / ' + fm.lenB + ')');
-      }
-      if (emptyA) { part.itemsA = (part.added   ? [] : part.items); }
-      if (emptyB) { part.itemsB = (part.removed ? [] : part.items); }
+      maybeScanPartError(part.sign === '±', fm, partIdx,
+        'Cannot find items for combined add/remove');
+      maybeScanPartError(items === undefined, fm, partIdx,
+        'Cannot upgrade: No item list in');
+      if (emptyA) { part.a.items = (part.added   ? [] : part.items); }
+      if (emptyB) { part.b.items = (part.removed ? [] : part.items); }
       delete part.items;
     }
     return part;
   };
 
 
-  gdc.scanPart = function (fm, part, partIdx) {
-    var prev = (fm[fm.length - 1] || false), len;
-    part = gdc.upgradePart(Object.assign({}, part), partIdx, fm);
-    if (truthyOr(fm.glue, '')) {
-      part.itemsA = tryJoin(fm.glue, part.itemsA);
-      part.itemsB = tryJoin(fm.glue, part.itemsB);
-    }
-    part.startA = fm.lenA;
-    part.startB = fm.lenB;
-    len = part.itemsA.length;
-    if (len) {
-      fm.lenA += len;
-      fm.lastPartA = partIdx;
-    }
-    len = part.itemsB.length;
-    if (len) {
-      fm.lenB += len;
-      fm.lastPartB = partIdx;
-    }
-    if (part.sign === prev.sign) {
-      gdc.addItemsToPrevPart(prev, part, fm.glue);
-      return;
-    }
-    part.endA = fm.lenA;
-    part.endB = fm.lenB;
-    fm.push(part);
-  };
-
-
-  gdc.addItemsToPrevPart = function (prev, part, glue) {
-    if (truthyOr(glue, '')) {
-      prev.itemsA += (prev.itemsA ? glue : '') + part.itemsA;
-      prev.itemsB += (prev.itemsB ? glue : '') + part.itemsB;
-    } else {
-      Array.prototype.push.apply(prev.itemsA, part.itemsA);
-      Array.prototype.push.apply(prev.itemsB, part.itemsB);
-    }
-    prev.endA += part.itemsA.length;
-    prev.endB += part.itemsB.length;
+  gdc.addItemsToPrevPart = function (prev, crnt, glue) {
+    bothSides(prev, crnt, function each(prevSide, partSide) {
+      var add = partSide.items;
+      if (truthyOr(glue, '')) {
+        prevSide.items += (prevSide.items ? glue : '') + add;
+      } else {
+        // don't push to each side unless we know they're different arrays!
+        prevSide.items = prevSide.items.concat(add);
+      }
+      prevSide.len += add.length;
+    });
   };
 
 
@@ -145,63 +183,73 @@ module.exports = (function () {
       return merged.push(part);
     });
     merged.glue = fm.glue;
-    merged.lenA = fm.lenA;
-    merged.lenB = fm.lenB;
+    merged.a = { len: fm.a.len };
+    merged.b = { len: fm.b.len };
     return merged;
   };
 
 
-  gdc.checkFinalEol = function (fm) {
-    var flags = {}, lastA = fm[fm.lastPartA], lastB = fm[fm.lastPartB];
-    function checkFlag(side, items) {
-      flags[side] = (items.slice(-1) === (isStr(items) ? '\n' : ''));
-      //console.error('eol flag?', side, { items: items }, flags[side]);
-    }
-    checkFlag('a', lastA.itemsA);
-    if (lastA === lastB) {
-      flags.b = flags.a;
-      lastA.finalEol = flags;
-      //console.error('eol flags both:', lastA);
-    } else {
-      lastA.finalEol = { a: flags.a };
-      checkFlag('b', lastB.itemsB);
-      lastB.finalEol = { b: flags.b };
-      //console.error('eol flags a/b:', lastA, lastB);
-    }
-    fm.finalEol = flags;
+  gdc.checkFinalLfBothSides = function (fm) {
+    var flags = {};
+    function lastPart(side) { return fm[fm[side].lastPart]; }
+    bothSides(function adjust(side) {
+      var part = lastPart(side)[side], itm = part.items, fin;
+      if (!itm.length) { return; }
+      fin = (arrLast(itm) === (isStr(itm) ? '\n' : ''));
+      fm[side].finalLf = flags[side] = fin;
+      if (fin) { part.items = itm.slice(0, -1); }
+      //console.error('finLf adj:', side, part);
+    });
+    gdc.updateLastPartIndices(fm);
+    gdc.dropTrailingEmptyParts(fm);
+    bothSides(function annot(side) {
+      var part = lastPart(side);
+      if (!part.finalLf) { part.finalLf = {}; }
+      part.finalLf[side] = flags[side];
+      console.error(part);
+    });
+
+    //flags = { a: lastPart('a'), b: lastPart('b') };
+    //if (flags.a === flags.b) {
+    //  console.error('finLf flags both:', flags.a);
+    //} else {
+    //  console.error('finLf flags a/b:', flags.a, flags.b);
+    //}
   };
 
 
   gdc.unicode = {
-    arrows: {
-      downwardsArrowWithCornerLeftwards: '\u21B5',    // ↵
-      rightwardsArrowWithHook: '\u21AA',              // ↪
-    },
-    controlPictures: {
-      symbolForLineFeed: '\u240A',                    // ␊
-      symbolForNewline: '\u2424',                     // ␤
-    },
-    miscellaneousTechnical: {
-      enterSymbol: '\u2386',                          // ⎆
-    },
-    supplementalArrowsB: {
-      southEastArrowWithHook: '\u2925',               // ⤥
-    },
+    downwardsArrowWithCornerLeftwards: '\u21B5',    // ↵ //
+    enterSymbol: '\u2386',                          // ⎆ //
+    rightwardsArrowToBar: '\u21E5',                 // ⇥ //
+    rightwardsArrowWithHook: '\u21AA',              // ↪ //
+    southEastArrowWithHook: '\u2925',               // ⤥ //
+    symbolForLineFeed: '\u240A',                    // ␊ //
+    symbolForNewline: '\u2424',                     // ␤ //
   };
   gdc.markLineFeedChars = (function () {
-    var r = /\n/g, m = '\n' + gdc.unicode.arrows.rightwardsArrowWithHook;
+    var r = /\n/g, m = '\n^';
+      // m = '\n' + gdc.unicode.rightwardsArrowWithHook;
     return function (s) { return s.replace(r, m); };
   }());
 
 
-  gdc.vocNoFinalEol = 'No newline at end of file';
+  // gdc.vocNoFinalLf = 'No newline at end of file';
+  // gdc.vocNoFinalLf = gdc.unicode.rightwardsArrowToBar;
+  gdc.vocNoFinalLf = '¬¶';
 
 
   gdc.unify = function (diff, ctxLen) {
     if (!(diff || false).length) { throw new Error('No input data'); }
     var unified = [], blk, blkAppendSign, prevCtx = false, addCtxRemain = 0;
-    unified.lenA = 0;
-    unified.lenB = 0;
+    unified.a = { len: 0, lastPart: 0 };
+    unified.b = { len: 0, lastPart: 0 };
+
+    function startBlk(startAdj) {
+      blk = [];
+      blk.a = { start: unified.a.len + startAdj, len: 0 };
+      blk.b = { start: unified.b.len + startAdj, len: 0 };
+    }
 
     function blkAppendData(data) {
       if (isStr(data)) { return blk.push([blkAppendSign, data]); }
@@ -209,27 +257,31 @@ module.exports = (function () {
       throw new TypeError('Cannot make unified diff: unsupported item type');
     }
 
-    function blkAppendItems(sign, items, finEol) {
+    function blkAppendItems(sign, items, finLf) {
+      var len = items.length;
+      if (!len) { return; }
       blkAppendSign = sign;
-      blkAppendData(items);
-      if (sign !== '+') { blk.lenA += items.length; }
-      if (sign !== '-') { blk.lenB += items.length; }
-      if (finEol !== undefined) {
-        blk[blk.length - 1].finalEol = finEol;
-        //console.error('blk[-1] finEol?', [ sign, finalEol ], blk);
+      if (len) { blkAppendData(items); }
+      if (finLf !== undefined) {
+        arrLast(blk).finalLf = finLf;
+        //console.error('lastLn finLf?', [ sign, items, finLf ], blk);
       }
+      if (sign !== '+') { blk.a.len += len; }
+      if (sign !== '-') { blk.b.len += len; }
+      return items;
     }
 
     diff.forEach(function (part, partIdx) {
-      var newCtx, taken, itmA = part.itemsA, itmB = part.itemsB;
+      var newCtx, taken, itmA = part.a.items, itmB = part.b.items;
       if (isEmpty(part.sign) || isEmpty(itmA) || isEmpty(itmB)) {
         part = gdc.upgradePart(Object.assign({}, part), partIdx, unified);
       }
+      //console.error('unify part', part);
       if (part.sign === ' ') {
         newCtx = itmA.slice();
         if (addCtxRemain > 0) {
           taken = newCtx.splice(0, addCtxRemain);
-          blkAppendItems(' ', taken, part.finalEol);
+          blkAppendItems(' ', taken);
           addCtxRemain -= taken.length;
         }
         if (prevCtx) {
@@ -238,54 +290,52 @@ module.exports = (function () {
             newCtx = prevCtx.items.slice(0, -ctxLen).concat(newCtx);
           }
         }
-        prevCtx = { items: newCtx, finalEol: part.finalEol };
+        prevCtx = { items: newCtx, finalLf: part.finalLf };
       } else {
         if (prevCtx) {
           taken = ((ctxLen > 0) && prevCtx.items.slice(-ctxLen));
           if (prevCtx.items.length > ctxLen) { blk = false; }
         }
         if (!blk) {
-          blk = [];
-          blk.startA = unified.lenA - (taken ? taken.length : 0);
-          blk.startB = unified.lenB - (taken ? taken.length : 0);
-          blk.lenA = 0;   // cf. "Don't combine A/B assignments" above
-          blk.lenB = 0;
+          startBlk(taken ? -taken.length : 0);
           addHiddenProp(blk, 'toString', gdc.unify.blockToString);
           unified.push(blk);
         }
-        if (taken) { blkAppendItems(' ', taken, prevCtx.finalEol); }
-        blkAppendItems('-', itmA, part.finalEol);
-        blkAppendItems('+', itmB, part.finalEol);
+        if (taken) { blkAppendItems(' ', taken, prevCtx.finalLf); }
+        blkAppendItems('-', itmA, part.finalLf);
+        blkAppendItems('+', itmB, part.finalLf);
         addCtxRemain = ctxLen;
         prevCtx = false;
       }
-      unified.lenA += itmA.length;
-      unified.lenB += itmB.length;
+      unified.a.len += itmA.length;
+      unified.b.len += itmB.length;
     });
 
-    if (diff.finalEol) { unified.finalEol = diff.finalEol; }
+    // unified.forEach(bothSides.recalcPartEnds);
+    gdc.updateLastPartIndices(unified);
+    bothSides(unified, diff, function (u, d) {
+      if (d.finalLf !== undefined) { u.finalLf = d.finalLf; }
+    });
     addHiddenProp(unified, 'toString', gdc.unify.diffToString);
     return unified;
   };
-  gdc.unify.fmtDiffLine = function (ln) {
-    var sign = ln[0], text = ln[1], finEol = ln.finalEol, addToDiff = '';
-    if (finEol) {
-      console.error('fmtDiffLine finEol?', ln);
-    }
-    addToDiff = '\n' + sign + gdc.markLineFeedChars(text);
-    if (finEol) { addToDiff += '<fin>'; }
-    // if (finEol === false) { diff += '\n\\ ' + gdc.vocNoFinalEol; }
-    return addToDiff;
-  };
   gdc.unify.blockToString = function () {
     var blk = this, natNumStart = 1,
-      diff = ('@@ -' + (blk.startA + natNumStart) +
-                       (blk.lenA === 1 ? '' : ',' + blk.lenA) +
-                ' +' + (blk.startB + natNumStart) +
-                       (blk.lenB === 1 ? '' : ',' + blk.lenB) +
+      diff = ('@@ -' + (blk.a.start + natNumStart) +
+                       (blk.a.len === 1 ? '' : ',' + blk.a.len) +
+                ' +' + (blk.b.start + natNumStart) +
+                       (blk.b.len === 1 ? '' : ',' + blk.b.len) +
                 ' @@');
     //console.error('blk2str:', blk);
-    diff += blk.map(gdc.unify.fmtDiffLine).join('');
+    blk.forEach(function (ln) {
+      //console.error('fmtBlkLn', ln);
+      var sign = ln[0], text = ln[1], fin = ln.finalLf;
+      diff += '\n' + sign + gdc.markLineFeedChars(text);
+      if (fin) {
+        fin = (sign === '-' ? fin.a : fin.b);
+        if (fin === false) { diff += '\n\\ ' + gdc.vocNoFinalLf; }
+      }
+    });
     return diff;
   };
   gdc.unify.diffToString = function () {

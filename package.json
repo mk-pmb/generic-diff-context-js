@@ -1,5 +1,5 @@
 { "name": "generic-diff-context",
-  "version": "0.1.2",
+  "version": "0.2.0",
   "description": "Filter reports from `generic-diff` or compatible modules to give changes with optional context.",
   "keywords": [
     "context",
@@ -20,7 +20,7 @@
   "private": false, "license": "ISC",
 
   "main": "gdc.js",
-  "scripts": { "test": "nodejs test/test.js" },
+  "scripts": { "test": "nodejs test/all.js" },
   "directories": {
     "doc": "doc",
     "test": "test"
