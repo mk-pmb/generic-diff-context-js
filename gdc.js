@@ -19,6 +19,7 @@ module.exports = (function () {
   function isFin(x) { return ((typeof x === 'number') && isFinite(x)); }
   //function ifFin(x, d) { return (isFin(x) ? x : d); }
   function isStr(x) { return (typeof x === 'string'); }
+  function isObj(x) { return ((x && typeof x) === 'object'); }
   function tryJoin(glue, x) { return (x.join ? x.join(glue) : x); }
   function arrLast(a) { return a[a.length - 1]; }
 
@@ -232,21 +233,64 @@ module.exports = (function () {
       //console.error('finLf lpts both:', flags, lpts.a);
       if (flags.a !== flags.b) { gdc.splitFinalLfPart(fm); }
     //} else {
-    //  console.error('finLf lpts a/b:', lpts.a, lpts.b);
+      //console.error('finLf lpts a/b:', lpts.a, lpts.b);
     }
   };
 
 
+  gdc.cloneDiffPart = function copy(src, dest, upd) {
+    upd = (upd || false);
+    dest = (dest || (Array.isArray(src) ? [] : {}));
+    function add(k, v) { dest[k] = v; }
+    Object.keys(src).forEach(function (k) {
+      var v = upd[k];
+      if (v === undefined) { v = src[k]; }
+      if (v === undefined) { return; }
+      if (!isObj(v)) { return add(k, v); }
+      if (k === 'items') { return add(k, v.slice()); }
+      return add(k, copy(v));
+    });
+    return dest;
+  };
+
+
+  gdc.singleOutLastItemsOfLastPart = function (fm, n) {
+    if (n !== 0) { n = (+n || 1); }
+    var srcPt = arrLast(fm), newPt = {};
+    //console.error('sepLastItem?', srcPt);
+    if ((srcPt.a.items.length <= n) && (srcPt.b.items.length <= n)) {
+      //console.error('sepLastItem: no-op!');
+      return srcPt;
+      // both sides have at most n items, so if we took them, we'd create:
+      // fm[fm.length - 2] = srcPt but empty
+      // fm[fm.length - 1] = copy of srcPt with all items
+    }
+    bothSides(function (side) {
+      var lpSide = srcPt[side], itm = lpSide.items,
+        newSide = { items: itm.slice(-n) };
+      newPt[side] = newSide;
+      itm = lpSide.items = itm.slice(0, -n);
+      newSide.start = lpSide.start + itm.length;
+    });
+    newPt = gdc.cloneDiffPart(srcPt, null, newPt);
+    delete srcPt.finalLf;   // <- may survive only in newPt
+    fm.push(newPt);
+    //console.error('sepLastItem:', srcPt, '\n ', newPt);
+    return newPt;
+  };
+
+
   gdc.splitFinalLfPart = function (fm) {
-    var origPt = arrLast(fm), fin = (origPt.finalLf || false),
-      ptA = origPt, sideA = origPt.a, sideB = origPt.b, ptB;
+    var origPt = gdc.singleOutLastItemsOfLastPart(fm, 1), ptA, ptB,
+      fin  = (origPt.finalLf || false), sideA = origPt.a, sideB = origPt.b;
     if (fin.a === fin.b) { return; }
     if (fin.a === undefined) { return; }
     if (fin.b === undefined) { return; }
-    if (ptA.sign !== ' ') {
-      console.error('splitFinalLfPart: panic:', ptA);
+    if (origPt.sign !== ' ') {
+      //console.error('splitFinalLfPart: panic:', ptA);
       throw new Error('Cannot split finalLf part with sign ' + ptA.sign);
     }
+    ptA = origPt;
     ptA.sign = '-';
     ptA.removed = true;
     ptA.added = false;

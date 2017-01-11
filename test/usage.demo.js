@@ -19,6 +19,19 @@ function usageDemo(dump) {
   //= `  glue: '' ]`
 
 
+  b = a + '\n';
+  diff = genDiffCtx(a, b);
+  dump(diff);
+  //= `[ { added: false, removed: false, sign: ' ',`
+  //= `    a: { items: 'hello world', start: 0 },`
+  //= `    b: { items: 'hello world', start: 0 } },`
+  //= `  { added: true,  removed: false, sign: '+',`
+  //= `    a: { items: '', start: 11 },`
+  //= `    b: { items: '\n', start: 11 } },`
+  //= `  a: { len: 11, lastPart: 0 }, b: { len: 12, lastPart: 1 },`
+  //= `  glue: '' ]`
+
+
   function toWords(s) { return s.split(/\s+/); }
 
   a = toWords("The       quick brown fox    jumps over the lazy dog.");
@@ -94,7 +107,7 @@ usageDemo.compactInspect = function (x) {
     ).replace(/\n(\s*)(?=[ab]:)/g, '\r$1'
     ).replace(/( \d+ more items,)\n/g, '$1\r'
     ).replace(/((?:[0-9a-z']|' \]|\[\]), *)\n\s+(?=[a-z])/g, '$1 '
-    ).replace(/(\\n)/g, "$1' +\n        '"
+    ).replace(/(\\n)(?!')/g, "$1' +\n        '"
     ).replace(/\r\s*(?=b:[ -~]{0,30}\},\n)/g, ' '
     ).replace(/\r/g, '\n');
 };
