@@ -26,14 +26,14 @@ function usageDemo(dump) {
   diff = genDiffCtx(a, b);
   dump(diff);
   //= `[ { added: false, removed: false, sign: ' ',`
-  //= `    a: { items: [Object], start: 0 },`
-  //= `    b: { items: [Object], start: 0 } },`
+  //= `    a: { items: [ 'The' ], start: 0 },`
+  //= `    b: { items: [ 'The' ], start: 0 } },`
   //= `  { added: true,  removed: false, sign: '+',`
   //= `    a: { items: [], start: 1 },`
-  //= `    b: { items: [Object], start: 1 } },`
+  //= `    b: { items: [ 'fuzzy' ], start: 1 } },`
   //= `  { added: false, removed: false, sign: ' ',`
-  //= `    a: { items: [Object], start: 1 },`
-  //= `    b: { items: [Object], start: 2 } },`
+  //= `    a: { items: [ 'quick' ], start: 1 },`
+  //= `    b: { items: [ 'quick' ], start: 2 } },`
   //= `  ... 5 more items,`
   //= `  a: { len: 9, lastPart: 7 }, b: { len: 8, lastPart: 7 },`
   //= `  glue: false ]`
@@ -52,26 +52,29 @@ function usageDemo(dump) {
   //= `    b: { start: 0, len: 5 } ],`
   //= `  [ [ ' ', 'the' ],`
   //= `    [ '-', 'lazy' ],`
-  //= `    [ ' ', 'dog.' ],`
+  //= `    [ ' ', 'dog.', finalLf: { a: false, b: false } ],`
   //= `    a: { start: 6, len: 3 },`
   //= `    b: { start: 6, len: 2 } ],`
   //= `  a: { len: 9, lastPart: 1, finalLf: false },`
   //= `  b: { len: 8, lastPart: 1, finalLf: false } ]`
 
   dump(diff.map(String));
-  //= `[ '@@ -1,5 +1,5 @@\n The\n' +`
+  //= `[ '@@ -1,5 +1,5 @@\n' +`
+  //= `        ' The\n' +`
   //= `        '+fuzzy\n' +`
   //= `        ' quick\n' +`
   //= `        '-brown\n' +`
   //= `        '-fox\n' +`
   //= `        '+kitten\n' +`
   //= `        ' jumps',`
-  //= `  '@@ -7,3 +7,2 @@\n the\n' +`
+  //= `  '@@ -7,3 +7,2 @@\n' +`
+  //= `        ' the\n' +`
   //= `        '-lazy\n' +`
-  //= `        ' dog.' ]`
+  //= `        ' dog.\n' +`
+  //= `        '\\ ¬¶' ]`
 
   dump(String(diff).split(/\n/));
-  //= `[ '@@ -1,5 +1,5 @@', ' The', '+fuzzy', ... 9 more items ]`
+  //= `[ '@@ -1,5 +1,5 @@', ' The', '+fuzzy', ... 10 more items ]`
 }
 
 
@@ -86,12 +89,12 @@ usageDemo.compact = function (func, obj) {
 
 
 usageDemo.compactInspect = function (x) {
-  return util.inspect(x, { maxArrayLength: 3 }
+  return util.inspect(x, { maxArrayLength: 3, depth: 9002 }
     ).replace(/(true,)(\n)/g, '$1 $2'
     ).replace(/\n(\s*)(?=[ab]:)/g, '\r$1'
     ).replace(/( \d+ more items,)\n/g, '$1\r'
     ).replace(/((?:[0-9a-z']|' \]|\[\]), *)\n\s+(?=[a-z])/g, '$1 '
-    ).replace(/(\w\\n)/g, "$1' +\n        '"
+    ).replace(/(\\n)/g, "$1' +\n        '"
     ).replace(/\r\s*(?=b:[ -~]{0,30}\},\n)/g, ' '
     ).replace(/\r/g, '\n');
 };
@@ -109,7 +112,7 @@ usageDemo.capture = function () {
 
 usageDemo.expectedOutput = (function () {
   var expected = [];
-  String(usageDemo).replace(/\n\s*\/{2}=\s*`([ -~]*)`(?=\n)/g,
+  String(usageDemo).replace(/\n\s*\/{2}=\s*`([ -\uFFFF]*)`(?=\n)/g,
     function (m, exln) { expected.push(m && exln); });
   return expected;
 }());

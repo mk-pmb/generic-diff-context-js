@@ -19,9 +19,14 @@ API
   * `opts`: config object
     * `mergePairs`: (bool) (default: `false`)
       Whether pairs of deletion and addition shall be merged.
-    * `unified`: (num | bool) (default: `false`)
-      If not `false`, return a unified diff, i.e. array of changes,
+    * `unified`: (number | object | bool) (default: `false`)
+      With number(s) given, return a unified diff, i.e. array of changes,
       each change being an array of lines changed.
+      The number sets how much context = how many unchanged items to include
+      on both sides of the change(s).
+      Give an object with number properties `before` and `after` to select
+      them separately. You can also use the `0` property instead of `before`,
+      and `1`, instead of `after`, so an array of two numbers will work.
     * `finalLf`: (bool) (default: false; default in `unified` mode: true)
       Whether to report the trailing newline as GNU diff does:
       If the last line has a newline at its end, omit it,

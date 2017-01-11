@@ -16,7 +16,9 @@ module.exports = (function () {
 
   function truthyOr(x, y) { return (x || (x === y)); }
   function isEmpty(x) { return ((x === null) || (x === undefined)); }
-  function isStr(x) { return ((typeof x) === 'string'); }
+  function isFin(x) { return ((typeof x === 'number') && isFinite(x)); }
+  //function ifFin(x, d) { return (isFin(x) ? x : d); }
+  function isStr(x) { return (typeof x === 'string'); }
   function tryJoin(glue, x) { return (x.join ? x.join(glue) : x); }
   function arrLast(a) { return a[a.length - 1]; }
 
@@ -58,38 +60,54 @@ module.exports = (function () {
     fullMerge.b = { len: 0 };
 
     opt = Object.assign({}, opt);
-    unified = opt.unified;
-    if (typeof unified === 'number') {
-      if (opt.finalLf !== false) { opt.finalLf = true; }
-    } else {
-      unified = false;
-    }
+    unified = gdc.parseOpt_unified(opt.unified);
     if (opt.glue === undefined) {
       fullMerge.glue = (isStr(a) && isStr(b) && '');
     } else {
       fullMerge.glue = (opt.glue === '' ? '' : (opt.glue || false));
     }
 
+    //console.error('orig report:', fullDiffReport);
     fullDiffReport.forEach(gdc.scanPart.bind(null, fullMerge));
     if (opt.mergePairs) { fullMerge = gdc.mergeChangePairs(fullMerge, opt); }
     // fullMerge.forEach(bothSides.recalcPartEnds);
     gdc.updateLastPartIndices(fullMerge);
-    if (opt.finalLf) { gdc.checkFinalLfBothSides(fullMerge); }
-    if (unified !== false) {
-      return gdc.unify(fullMerge, unified, opt);
+    //console.error('fullMerge:', fullMerge);
+    if (opt.finalLf !== false) {
+      if (opt.finalLf || unified) {
+        gdc.checkFinalLfBothSides(fullMerge);
+      }
+    }
+    if (unified) {
+      return gdc.unify(fullMerge, unified.before, unified.after);
     }
     return fullMerge;
   };
 
 
+  gdc.parseOpt_unified = function (u) {
+    if (isFin(u)) { return { before: u, after: u }; }
+    if (!u) { return false; }
+    if (isFin(u.before) || isFin(u.after) || isFin(u[0]) || isFin(u[1])) {
+      return { before: (+u.before || +u[0] || 0),
+        after: (+u.after || +u[1] || 0) };
+    }
+    return false;
+  };
+
+
   gdc.updateLastPartIndices = function (diff) {
     var lpA = 0, lpB = 0, idx, d;
-    function len(x) { return (x.items || x).length; }
+    function len(x) {
+      var l = x.len, i = x.items;
+      if (x.finalLf && (i === '')) { return true; }
+      return (l === +l ? l : i.length);
+    }
     for (idx = diff.length - 1; idx > 0; idx -= 1) {
       d = diff[idx];
-      //console.error('upd lastPart:', idx, d.a, d.b);
-      if (len(d.a)) { lpA = idx; }
-      if (len(d.b)) { lpB = idx; }
+      //console.error('upd lastPart:', idx, len(d.a), len(d.b), d);
+      if (len(d.a) && (lpA === 0)) { lpA = idx; }
+      if (len(d.b) && (lpB === 0)) { lpB = idx; }
       if (lpA && lpB) { break; }
     }
     diff.a.lastPart = lpA;
@@ -190,43 +208,61 @@ module.exports = (function () {
 
 
   gdc.checkFinalLfBothSides = function (fm) {
-    var flags = {};
+    var flags = {}, lpts = {};
     function lastPart(side) { return fm[fm[side].lastPart]; }
     bothSides(function adjust(side) {
-      var part = lastPart(side)[side], itm = part.items, fin;
+      var part = lastPart(side), pSide = part[side], itm = pSide.items, fin;
+      //console.error('finLf chk: lp(' + side + ') =', part);
       if (!itm.length) { return; }
       fin = (arrLast(itm) === (isStr(itm) ? '\n' : ''));
       fm[side].finalLf = flags[side] = fin;
-      if (fin) { part.items = itm.slice(0, -1); }
-      //console.error('finLf adj:', side, part);
+      if (fin) { pSide.items = itm.slice(0, -1); }
+      //console.error('finLf adj:', side, fin, pSide);
     });
     gdc.updateLastPartIndices(fm);
     gdc.dropTrailingEmptyParts(fm);
     bothSides(function annot(side) {
       var part = lastPart(side);
+      lpts[side] = part;
       if (!part.finalLf) { part.finalLf = {}; }
       part.finalLf[side] = flags[side];
-      console.error(part);
     });
 
-    //flags = { a: lastPart('a'), b: lastPart('b') };
-    //if (flags.a === flags.b) {
-    //  console.error('finLf flags both:', flags.a);
+    if (lpts.a === lpts.b) {
+      //console.error('finLf lpts both:', flags, lpts.a);
+      if (flags.a !== flags.b) { gdc.splitFinalLfPart(fm); }
     //} else {
-    //  console.error('finLf flags a/b:', flags.a, flags.b);
-    //}
+    //  console.error('finLf lpts a/b:', lpts.a, lpts.b);
+    }
   };
 
 
-  gdc.unicode = {
-    downwardsArrowWithCornerLeftwards: '\u21B5',    // ↵ //
-    enterSymbol: '\u2386',                          // ⎆ //
-    rightwardsArrowToBar: '\u21E5',                 // ⇥ //
-    rightwardsArrowWithHook: '\u21AA',              // ↪ //
-    southEastArrowWithHook: '\u2925',               // ⤥ //
-    symbolForLineFeed: '\u240A',                    // ␊ //
-    symbolForNewline: '\u2424',                     // ␤ //
+  gdc.splitFinalLfPart = function (fm) {
+    var origPt = arrLast(fm), fin = (origPt.finalLf || false),
+      ptA = origPt, sideA = origPt.a, sideB = origPt.b, ptB;
+    if (fin.a === fin.b) { return; }
+    if (fin.a === undefined) { return; }
+    if (fin.b === undefined) { return; }
+    if (ptA.sign !== ' ') {
+      console.error('splitFinalLfPart: panic:', ptA);
+      throw new Error('Cannot split finalLf part with sign ' + ptA.sign);
+    }
+    ptA.sign = '-';
+    ptA.removed = true;
+    ptA.added = false;
+    function copySide(src) {
+      return { items: src.items.slice(0, 0), start: src.start };
+    }
+    ptB = { added: true, removed: false, sign: '+',
+      a: copySide(sideA), b: ptA.b, finalLf: { b: fin.b } };
+    ptA.finalLf = { a: fin.a };
+    ptA.b = copySide(sideB);
+    fm.b.lastPart = fm.length;
+    fm.push(ptB);
+    //console.error('splitFinalLfPart', ptA, '\n ', ptB);
   };
+
+
   gdc.markLineFeedChars = (function () {
     var r = /\n/g, m = '\n^';
       // m = '\n' + gdc.unicode.rightwardsArrowWithHook;
@@ -239,9 +275,10 @@ module.exports = (function () {
   gdc.vocNoFinalLf = '¬¶';
 
 
-  gdc.unify = function (diff, ctxLen) {
+  gdc.unify = function (diff, prefixLen, suffixLen) {
     if (!(diff || false).length) { throw new Error('No input data'); }
-    var unified = [], blk, blkAppendSign, prevCtx = false, addCtxRemain = 0;
+    var unified = [], blk, blkAppendSign,
+      prevCtx = false, prevFinalLf, addCtxRemain = 0;
     unified.a = { len: 0, lastPart: 0 };
     unified.b = { len: 0, lastPart: 0 };
 
@@ -261,10 +298,10 @@ module.exports = (function () {
       var len = items.length;
       if (!len) { return; }
       blkAppendSign = sign;
-      if (len) { blkAppendData(items); }
+      blkAppendData(items);
       if (finLf !== undefined) {
         arrLast(blk).finalLf = finLf;
-        //console.error('lastLn finLf?', [ sign, items, finLf ], blk);
+        //console.error('lastLn finLf?', [ sign, items ], finLf);
       }
       if (sign !== '+') { blk.a.len += len; }
       if (sign !== '-') { blk.b.len += len; }
@@ -279,32 +316,46 @@ module.exports = (function () {
       //console.error('unify part', part);
       if (part.sign === ' ') {
         newCtx = itmA.slice();
+        // waiting for "after" context?
         if (addCtxRemain > 0) {
-          taken = newCtx.splice(0, addCtxRemain);
-          blkAppendItems(' ', taken);
+          taken = newCtx.slice(0, addCtxRemain);
+          newCtx = newCtx.slice(addCtxRemain);
+          // ^-- can't just .splice() because itmA might be a string
+          blkAppendItems(' ', taken,
+            // give finalLf only if we consumed the new part's last line:
+            (newCtx.length === 0 ? part.finalLf : undefined));
           addCtxRemain -= taken.length;
         }
+        // prepare for "before" context.
         if (prevCtx) {
-          if (newCtx.length < ctxLen) {
-            // we need to re-use some old lines
-            newCtx = prevCtx.items.slice(0, -ctxLen).concat(newCtx);
+          if (newCtx.length < prefixLen) {
+            // We need to re-use some old lines.
+            // How many? Let's just take n=prefixLen,
+            taken = prevCtx.slice(0, -prefixLen);
+            // that will always be enough and who cares
+            // whether we keep more than we'd need.
+            newCtx = taken.concat(newCtx);
           }
         }
-        prevCtx = { items: newCtx, finalLf: part.finalLf };
+        prevCtx = newCtx;
+        prevFinalLf = part.finalLf;
       } else {
+        // try to add the "before" context:
         if (prevCtx) {
-          taken = ((ctxLen > 0) && prevCtx.items.slice(-ctxLen));
-          if (prevCtx.items.length > ctxLen) { blk = false; }
+          taken = ((prefixLen > 0) && prevCtx.slice(-prefixLen));
+          // Skip remove items b/c we'll soon abandon the entire prevCtx.
+          if (prevCtx.length > prefixLen) { blk = false; }
         }
         if (!blk) {
           startBlk(taken ? -taken.length : 0);
           addHiddenProp(blk, 'toString', gdc.unify.blockToString);
           unified.push(blk);
         }
-        if (taken) { blkAppendItems(' ', taken, prevCtx.finalLf); }
+        //if (taken) { console.error('taken2', taken, prevCtx, prevFinalLf); }
+        if (taken) { blkAppendItems(' ', taken, prevFinalLf); }
         blkAppendItems('-', itmA, part.finalLf);
         blkAppendItems('+', itmB, part.finalLf);
-        addCtxRemain = ctxLen;
+        addCtxRemain = suffixLen;
         prevCtx = false;
       }
       unified.a.len += itmA.length;
