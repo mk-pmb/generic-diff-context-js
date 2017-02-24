@@ -210,12 +210,16 @@ module.exports = (function () {
 
   gdc.checkFinalLfBothSides = function (fm) {
     var flags = {}, lpts = {};
+    if (fm.length === 0) { return; }
     function lastPart(side) { return fm[fm[side].lastPart]; }
     bothSides(function adjust(side) {
       var part = lastPart(side), pSide = part[side], itm = pSide.items, fin;
       //console.error('finLf chk: lp(' + side + ') =', part);
-      if (!itm.length) { return; }
-      fin = (arrLast(itm) === (isStr(itm) ? '\n' : ''));
+      if (itm.length) {
+        fin = (arrLast(itm) === (isStr(itm) ? '\n' : ''));
+      } else {
+        fin = false;  // no items = especially no finLf
+      }
       fm[side].finalLf = flags[side] = fin;
       if (fin) { pSide.items = itm.slice(0, -1); }
       //console.error('finLf adj:', side, fin, pSide);
@@ -320,7 +324,6 @@ module.exports = (function () {
 
 
   gdc.unify = function (diff, prefixLen, suffixLen) {
-    if (!(diff || false).length) { throw new Error('No input data'); }
     var unified = [], blk, blkAppendSign,
       prevCtx = false, prevFinalLf, addCtxRemain = 0;
     unified.a = { len: 0, lastPart: 0 };

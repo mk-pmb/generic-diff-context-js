@@ -5,6 +5,7 @@
 var tu = require('./lib-test-util.js');
 
 require('./basics.js');
+require('./unified-chars.js');
 require('./unified-finlf.js');
 require('./unified-words.js');
 
