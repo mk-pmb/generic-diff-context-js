@@ -16,12 +16,12 @@ opt.unified = 9009;
 tu.arrEq([diffCtx(a, b, opt).map(String)]);
 
 b += 'World';
-tu.arrEq([diffCtx(a, b, opt).map(String),
-  ( '@@ -1,5 +1,10 @@\n' +
-    ' Hello\n' +
-    '+World\n' +
-    '\\ ¬¶' ),
-  ]);
+tu.arrEq([diffCtx(a, b, opt).map(String), [
+  '@@ -1,5 +1,10 @@',
+  ' Hello',
+  '+World',
+  '\\ ¬¶',
+].join('\n')]);
 
 
 
