@@ -20,14 +20,12 @@ function doubleRail(diff, opt) {
     quot = (opt.quot || JSON.stringify),
     oldRail = '--- ',
     newRail = '+++ ';
-  console.error('=====', opt);
   diff.forEach(function railHunk(hunkData, hunkIdx) {
     if (hunkIdx) {
       oldRail += hunkSep;
       newRail += hunkSep;
     }
     hunkData.forEach(function (part) {
-      console.error({ part: part });
       var sign = part[0], text = quot(part[1]);
       oldRail += railAdd((sign !== '+'), text);
       newRail += railAdd((sign !== '-'), text);

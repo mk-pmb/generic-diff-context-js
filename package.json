@@ -1,5 +1,5 @@
 { "name": "generic-diff-context",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "description": "Filter reports from `generic-diff` or compatible modules to give changes with optional context.",
   "keywords": [
     "context",
