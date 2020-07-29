@@ -417,7 +417,8 @@ module.exports = (function () {
     addHiddenProp(unified, 'toString', gdc.unify.diffToString);
     return unified;
   };
-  gdc.unify.blockToString = function () {
+  gdc.unify.blockToString = function (opt) {
+    if (!opt) { opt = false; }
     var blk = this, natNumStart = 1,
       diff = ('@@ -' + (blk.a.start + natNumStart) +
                        (blk.a.len === 1 ? '' : ',' + blk.a.len) +
@@ -436,8 +437,11 @@ module.exports = (function () {
     });
     return diff;
   };
-  gdc.unify.diffToString = function () {
-    return this.map(Function.call.bind(gdc.unify.blockToString)).join('\n');
+  gdc.unify.diffToString = function (opt) {
+    if (!opt) { opt = false; }
+    function each(blk) { return gdc.unify.blockToString.call(blk, opt); }
+    var report = this.map(each).join('\n');
+    return report;
   };
 
 
